@@ -10,6 +10,7 @@ BODEGAS = ['Sevilla', 'Tuluá', 'Caicedonia']
 CAFES = ['Castillo', 'Caturra', 'Borbón']
 
 # --- Funciones para manejar datos (igual que antes) ---
+# --- Convertir JSON en matrices ---
 def cargar_datos():
     with open('inventario.json', 'r') as f:
         inventario = np.array(json.load(f))
@@ -66,7 +67,7 @@ def index():
     # Cargar datos frescos
     inventario, precios = cargar_datos()
     
-    # --- ¡LA MAGIA DEL ÁLGEBRA LINEAL! ---
+    # --- ÁLGEBRA LINEAL---
     # Multiplicamos la matriz de inventario (3x3) por el vector de precios (3x1)
     valor_por_bodega = np.dot(inventario, precios)
     valor_total = np.sum(valor_por_bodega)
@@ -113,6 +114,30 @@ def mover_inventario():
         mensaje = f"Movimiento de {cantidad} sacos de {CAFES[cafe_idx]} desde {BODEGAS[bodega_origen_idx]} a {BODEGAS[bodega_destino_idx]}"
         registrar_movimiento(mensaje)
 
+    return redirect(url_for('index'))
+
+@app.route('/agregar-inventario', methods=['POST'])
+def agregar_inventario():
+    # 1. Obtenemos los datos del nuevo formulario
+    bodega_idx = int(request.form['bodega'])
+    cafe_idx = int(request.form['cafe'])
+    cantidad = int(request.form['cantidad'])
+    
+    # 2. Cargamos el inventario actual
+    inventario, _ = cargar_datos()
+
+    # 3. Realizamos la operación matricial (una simple suma en la celda correcta)
+    if cantidad > 0:
+        inventario[bodega_idx, cafe_idx] += cantidad
+        
+        # 4. Guardamos los cambios en el archivo JSON
+        guardar_inventario(inventario)
+        
+        # 5. Registramos la acción en el historial
+        mensaje = f"Agregados {cantidad} sacos de {CAFES[cafe_idx]} a la bodega {BODEGAS[bodega_idx]}"
+        registrar_movimiento(mensaje) # Reutilizamos la función de registro
+
+    # 6. Redirigimos a la página principal para ver el cambio
     return redirect(url_for('index'))
 
 if __name__ == '__main__':

@@ -5,103 +5,167 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Valoración de Inventario de Café</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        .valor-total { font-size: 1.5rem; font-weight: bold; }
+        /* Estilos personalizados y redefinición de variables de Bootstrap */
+        :root {
+            --bs-body-bg: #f8f9fa; /* Fondo gris claro */
+            --bs-primary: #005A3A;   /* Un verde oscuro para el color principal */
+            --bs-primary-rgb: 0, 90, 58;
+            --bs-success: #00A86B; /* Un verde más brillante para éxito */
+            --bs-success-rgb: 0, 168, 107;
+        }
+
+        .valor-total-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .card-header-icon {
+            font-size: 1.2rem;
+            margin-right: 0.5rem;
+        }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="mb-4 text-center">Herramienta de Valoración de Inventario en Tiempo Real</h1>
+    <div class="container mt-4 mb-5">
         
-        <div class="row">
-            <div class="col-lg-8">
-                <h3>Inventario Actual (Sacos)</h3>
-                <table class="table table-bordered table-striped text-center">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Bodega</th>
-                            {% for cafe in cafes %}
-                                <th>{{ cafe }}</th>
-                            {% endfor %}
-                            <th>Valoración Bodega</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for i in range(bodegas|length) %}
-                        <tr>
-                            <td><strong>{{ bodegas[i] }}</strong></td>
-                            {% for j in range(cafes|length) %}
-                                <td>{{ inventario[i][j] }}</td>
-                            {% endfor %}
-                            <td><strong>${{ "{:,.0f}".format(valor_por_bodega[i]) }}</strong></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="alert alert-success text-center">
-                    Valor Total del Inventario: <span class="valor-total">${{ "{:,.0f}".format(valor_total) }}</span>
+        <h1 class="mb-4 text-center display-5">Café de la Valluna ☕</h1>
+        
+        <div class="card text-center mb-4 shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="card-title text-muted">VALOR TOTAL DEL INVENTARIO</h5>
+                <p class="card-text valor-total-display text-success">${{ "{:,.0f}".format(valor_total) }}</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white d-flex align-items-center">
+                        <i class="bi bi-table card-header-icon"></i>
+                        <strong>Inventario Actual (Sacos)</strong>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped table-hover text-center mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Bodega</th>
+                                    {% for cafe in cafes %}<th>{{ cafe }}</th>{% endfor %}
+                                    <th>Valoración</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(bodegas|length) %}
+                                <tr>
+                                    <td><strong>{{ bodegas[i] }}</strong></td>
+                                    {% for j in range(cafes|length) %}
+                                        <td>{{ inventario[i][j] }}</td>
+                                    {% endfor %}
+                                    <td><strong>${{ "{:,.0f}".format(valor_por_bodega[i]) }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card mt-4 shadow-sm">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-clock-history card-header-icon"></i>
+                        <strong>Historial de Movimientos</strong>
+                    </div>
+                    <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                        {% if historial and historial|length > 0 %}
+                            <ul class="list-group list-group-flush">
+                                {% for linea in historial %}
+                                    <li class="list-group-item small border-0">{{ linea }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted mb-0">No hay movimientos registrados.</p>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
-            <div class="col-lg-4">
-                <div class="card mb-4">
-                    <div class="card-header"><strong>Actualizar Precios por Saco</strong></div>
+            <div class="col-lg-5">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-tags-fill card-header-icon"></i>
+                        <strong>Actualizar Precios por Saco</strong>
+                    </div>
                     <div class="card-body">
                         <form action="/actualizar-precios" method="post">
                             {% for i in range(cafes|length) %}
-                            <div class="mb-3">
-                                <label class="form-label">{{ cafes[i] }}</label>
-                                <input type="number" name="precio_{{ cafes[i]|lower }}" value="{{ precios[i] }}" class="form-control" required>
+                            <div class="input-group mb-3">
+                                <span class="input-group-text" style="width: 90px;">{{ cafes[i] }}</span>
+                                <input type="number" name="precio_{{ cafes[i]|lower|replace('ó', 'o') }}" value="{{ precios[i] }}" class="form-control" required>
                             </div>
                             {% endfor %}
-                            <button type="submit" class="btn btn-primary w-100">Actualizar Precios</button>
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
                         </form>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-header"><strong>Mover Inventario</strong></div>
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-truck card-header-icon"></i>
+                        <strong>Mover Inventario</strong>
+                    </div>
                     <div class="card-body">
                          <form action="/mover-inventario" method="post">
                             <div class="mb-3">
-                                <label>Origen:</label>
+                                <label class="form-label">Desde Bodega:</label>
                                 <select name="origen" class="form-select">
                                     {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label>Destino:</label>
+                                <label class="form-label">Hacia Bodega:</label>
                                 <select name="destino" class="form-select">
                                     {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
                                 </select>
                             </div>
                              <div class="mb-3">
-                                <label>Tipo de Café:</label>
+                                <label class="form-label">Tipo de Café:</label>
                                 <select name="cafe" class="form-select">
                                     {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label>Cantidad:</label>
+                                <label class="form-label">Cantidad (sacos):</label>
                                 <input type="number" name="cantidad" class="form-control" required min="1">
                             </div>
-                            <button type="submit" class="btn btn-success w-100">Realizar Movimiento</button>
+                            <button type="submit" class="btn btn-success w-100"><i class="bi bi-send-fill"></i> Realizar Movimiento</button>
                         </form>
                     </div>
                 </div>
                 
-                <div class="card mt-4">
-                    <div class="card-header"><strong>Historial de Movimientos</strong></div>
-                    <div class="card-body" style="max-height:260px; overflow:auto;">
-                        {% if historial and historial|length > 0 %}
-                            <ul class="list-group list-group-flush">
-                                {% for linea in historial %}
-                                    <li class="list-group-item small">{{ linea }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-muted">No hay movimientos registrados aún.</p>
-                        {% endif %}
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-plus-circle-fill card-header-icon"></i>
+                        <strong>Agregar Sacos al Inventario</strong>
+                    </div>
+                    <div class="card-body">
+                         <form action="/agregar-inventario" method="post">
+                            <div class="mb-3">
+                                <label class="form-label">Bodega:</label>
+                                <select name="bodega" class="form-select">
+                                    {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
+                                </select>
+                            </div>
+                             <div class="mb-3">
+                                <label class="form-label">Tipo de Café:</label>
+                                <select name="cafe" class="form-select">
+                                    {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Cantidad a Agregar:</label>
+                                <input type="number" name="cantidad" class="form-control" required min="1">
+                            </div>
+                            <button type="submit" class="btn btn-info w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
+                        </form>
                     </div>
                 </div>
             </div>
