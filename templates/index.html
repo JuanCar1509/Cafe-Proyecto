@@ -1,175 +1,395 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Valoración de Inventario de Café</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Café Valluna | Sistema Inteligente</title>
+    <!-- Bootstrap 5 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Chart.js para Proyecciones -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
-        /* Estilos personalizados y redefinición de variables de Bootstrap */
         :root {
-            --bs-body-bg: #f8f9fa; /* Fondo gris claro */
-            --bs-primary: #005A3A;   /* Un verde oscuro para el color principal */
-            --bs-primary-rgb: 0, 90, 58;
-            --bs-success: #00A86B; /* Un verde más brillante para éxito */
-            --bs-success-rgb: 0, 168, 107;
+            --cafe-primary: #4B3621;
+            --cafe-secondary: #A0522D;
+            --cafe-accent: #CD853F;
+            --cafe-light: #F5F5DC;
+            --matrix-color: #00ff41; /* Estilo Matrix para la explicación matemática */
         }
-
-        .valor-total-display {
-            font-size: 2.5rem;
-            font-weight: bold;
-        }
-        .card-header-icon {
-            font-size: 1.2rem;
-            margin-right: 0.5rem;
-        }
+        body { background-color: #f4f4f4; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { background: var(--cafe-primary); min-height: 100vh; color: white; }
+        .nav-link { color: rgba(255,255,255,0.8); margin-bottom: 5px; cursor: pointer; }
+        .nav-link:hover, .nav-link.active { background: var(--cafe-accent); color: white; border-radius: 5px; }
+        .card-custom { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .card-custom:hover { transform: translateY(-5px); }
+        .metric-value { font-size: 2rem; font-weight: bold; color: var(--cafe-primary); }
+        .math-box { background: #000; color: var(--matrix-color); font-family: monospace; padding: 15px; border-radius: 5px; margin-top: 10px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-    <div class="container mt-4 mb-5">
-        
-        <h1 class="mb-4 text-center display-5">Café de la Valluna ☕</h1>
-        
-        <div class="card text-center mb-4 shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="card-title text-muted">VALOR TOTAL DEL INVENTARIO</h5>
-                <p class="card-text valor-total-display text-success">${{ "{:,.0f}".format(valor_total) }}</p>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2 sidebar p-3 d-none d-md-block">
+            <h4 class="text-center mb-4"><i class="bi bi-cup-hot-fill"></i> Valluna S.A.S</h4>
+            <hr>
+            <ul class="nav flex-column">
+                <li class="nav-item"><a class="nav-link active" onclick="showTab('dashboard')"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" onclick="showTab('logistica')"><i class="bi bi-truck"></i> Logística & Costos</a></li>
+                <li class="nav-item"><a class="nav-link" onclick="showTab('analitica')"><i class="bi bi-graph-up-arrow"></i> Analítica & Proyección</a></li>
+                <li class="nav-item"><a class="nav-link" onclick="showTab('config')"><i class="bi bi-gear"></i> Bolsa & Config</a></li>
+            </ul>
+            <div class="mt-auto pt-5 text-center small text-white-50">
+                <p>Módulo de Álgebra Lineal<br>v3.0 Final</p>
             </div>
         </div>
 
-        <div class="row g-4">
-            <div class="col-lg-7">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-dark text-white d-flex align-items-center">
-                        <i class="bi bi-table card-header-icon"></i>
-                        <strong>Inventario Actual (Sacos)</strong>
+        <!-- Main Content -->
+        <div class="col-md-10 p-4">
+            
+            <!-- Alertas -->
+            {% if request.args.get('mensaje_alerta') %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> {{ request.args.get('mensaje_alerta') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+            {% if request.args.get('mensaje_error') %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> {{ request.args.get('mensaje_error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <!-- 1. DASHBOARD -->
+            <div id="dashboard" class="tab-content">
+                <h2 class="mb-4">Resumen General de Inventario</h2>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card card-custom p-3 h-100">
+                            <h6 class="text-muted">Valor Total Inventario</h6>
+                            <div class="metric-value text-success">${{ "{:,.0f}".format(valor_total) }}</div>
+                            <small class="text-muted"><i class="bi bi-calculator"></i> Calculado con Producto Punto</small>
+                        </div>
                     </div>
-                    <div class="card-body p-0">
-                        <table class="table table-striped table-hover text-center mb-0">
-                            <thead>
+                    <div class="col-md-8">
+                         <div class="card card-custom p-3 h-100">
+                            <h6 class="text-muted">Estado Actual de Precios (COP/Saco)</h6>
+                            <div class="d-flex justify-content-around mt-3">
+                                {% for i in range(cafes|length) %}
+                                    <div class="text-center">
+                                        <span class="badge bg-secondary mb-1">{{ cafes[i] }}</span>
+                                        <h4 class="mb-0">${{ "{:,.0f}".format(precios[i]) }}</h4>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-custom p-4 mb-4">
+                    <h5><i class="bi bi-table"></i> Matriz de Existencias</h5>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-hover text-center align-middle">
+                            <thead class="table-dark">
                                 <tr>
-                                    <th>Bodega</th>
-                                    {% for cafe in cafes %}<th>{{ cafe }}</th>{% endfor %}
-                                    <th>Valoración</th>
+                                    <th>Bodega \ Café</th>
+                                    {% for c in cafes %}<th>{{ c }}</th>{% endfor %}
+                                    <th>Valor Bodega</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for i in range(bodegas|length) %}
                                 <tr>
-                                    <td><strong>{{ bodegas[i] }}</strong></td>
+                                    <td class="fw-bold">{{ bodegas[i] }}</td>
                                     {% for j in range(cafes|length) %}
-                                        <td>{{ inventario[i][j] }}</td>
+                                        <td>
+                                            {{ inventario[i][j] }} 
+                                            {% if inventario[i][j] < 10 %}<span class="badge bg-danger rounded-pill" style="font-size: 0.6em">Bajo</span>{% endif %}
+                                        </td>
                                     {% endfor %}
-                                    <td><strong>${{ "{:,.0f}".format(valor_por_bodega[i]) }}</strong></td>
+                                    <td class="text-success fw-bold">${{ "{:,.0f}".format(valor_bodegas[i]) }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    <button class="btn btn-sm btn-outline-dark mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#mathValuation">
+                        <i class="bi bi-eye"></i> Ver "Caja Blanca" Matemática
+                    </button>
+                    <div class="collapse" id="mathValuation">
+                        <div class="math-box">
+                            <p>// Operación Algebraica:</p>
+                            <p>V_bodega = Matriz_Inventario (3x3) · Vector_Precios (3x1)</p>
+                            <p>Resultado = Vector de Valoración (3x1)</p>
+                            <p class="text-muted">// Esto demuestra el uso de operaciones matriciales básicas para resumir datos.</p>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="card mt-4 shadow-sm">
-                    <div class="card-header d-flex align-items-center">
-                        <i class="bi bi-clock-history card-header-icon"></i>
-                        <strong>Historial de Movimientos</strong>
+                <div class="card card-custom p-4">
+                    <h5><i class="bi bi-plus-circle"></i> Ingreso Rápido de Stock</h5>
+                    <form action="/agregar-inventario" method="POST" class="row g-3 mt-1">
+                        <div class="col-md-4">
+                            <select name="bodega" class="form-select">
+                                {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select name="cafe" class="form-select">
+                                {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" name="cantidad" class="form-control" placeholder="Cant." required min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success w-100">Agregar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 2. LOGÍSTICA -->
+            <div id="logistica" class="tab-content d-none">
+                <h2 class="mb-4">Logística y Transporte</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card card-custom p-4 h-100">
+                            <h5><i class="bi bi-truck"></i> Mover Inventario</h5>
+                            <p class="text-muted small">El costo se calcula automáticamente usando la Matriz de Costos.</p>
+                            <form action="/mover-inventario" method="POST">
+                                <div class="mb-3">
+                                    <label>Origen</label>
+                                    <select name="origen" class="form-select">
+                                        {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label>Destino</label>
+                                    <select name="destino" class="form-select">
+                                        {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="row">
+                                    <div class="col">
+                                        <label>Café</label>
+                                        <select name="cafe" class="form-select">
+                                            {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col">
+                                        <label>Cantidad</label>
+                                        <input type="number" name="cantidad" class="form-control" required min="1">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 mt-4">Ejecutar Movimiento</button>
+                            </form>
+                        </div>
                     </div>
-                    <div class="card-body" style="max-height: 200px; overflow-y: auto;">
-                        {% if historial and historial|length > 0 %}
-                            <ul class="list-group list-group-flush">
-                                {% for linea in historial %}
-                                    <li class="list-group-item small border-0">{{ linea }}</li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-muted mb-0">No hay movimientos registrados.</p>
-                        {% endif %}
+                    <div class="col-md-6">
+                        <div class="card card-custom p-4 h-100 bg-light">
+                            <h5><i class="bi bi-geo-alt"></i> Matriz de Costos (C)</h5>
+                            <div class="math-box bg-dark text-white p-3 rounded text-center">
+                                <pre class="m-0">
+      S      T      C
+S   [ 0    5000   8000 ]
+T   [ 5000   0    3500 ]
+C   [ 8000 3500     0  ]
+                                </pre>
+                            </div>
+                            <div class="mt-3">
+                                <h6>Explicación Matemática:</h6>
+                                <p class="small">El costo del movimiento es una operación escalar-matriz elemento a elemento: <code>Costo = k * C[i][j]</code>.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="col-lg-5">
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header d-flex align-items-center">
-                        <i class="bi bi-tags-fill card-header-icon"></i>
-                        <strong>Actualizar Precios por Saco</strong>
+            <!-- 3. ANALÍTICA (FIXED GRAPH) -->
+            <div id="analitica" class="tab-content d-none">
+                <h2 class="mb-4">Proyección de Agotamiento (Nivel 5)</h2>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card card-custom p-4">
+                            <h5>Parámetros</h5>
+                            <p class="small">Seleccione el café para calcular su tendencia de consumo usando <strong>Mínimos Cuadrados</strong>.</p>
+                            <select id="selectProyeccion" class="form-select mb-3">
+                                {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
+                            </select>
+                            <button onclick="calcularProyeccion()" class="btn btn-primary w-100">
+                                <i class="bi bi-magic"></i> Calcular Proyección
+                            </button>
+                            
+                            <div id="resultadoProyeccion" class="d-none mt-4">
+                                <hr>
+                                <h2 class="text-danger fw-bold" id="diasRestantes">0</h2>
+                                <p class="text-muted small">Días estimados para stock cero</p>
+                                <div class="math-box small p-2">
+                                    m (Pendiente): <span id="valM"></span><br>
+                                    b (Intercepto): <span id="valB"></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form action="/actualizar-precios" method="post">
-                            {% for i in range(cafes|length) %}
-                            <div class="input-group mb-3">
-                                <span class="input-group-text" style="width: 90px;">{{ cafes[i] }}</span>
-                                <input type="number" name="precio_{{ cafes[i]|lower|replace('ó', 'o') }}" value="{{ precios[i] }}" class="form-control" required>
-                            </div>
-                            {% endfor %}
-                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="card shadow-sm">
-                    <div class="card-header d-flex align-items-center">
-                        <i class="bi bi-truck card-header-icon"></i>
-                        <strong>Mover Inventario</strong>
-                    </div>
-                    <div class="card-body">
-                         <form action="/mover-inventario" method="post">
-                            <div class="mb-3">
-                                <label class="form-label">Desde Bodega:</label>
-                                <select name="origen" class="form-select">
-                                    {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Hacia Bodega:</label>
-                                <select name="destino" class="form-select">
-                                    {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
-                                </select>
-                            </div>
-                             <div class="mb-3">
-                                <label class="form-label">Tipo de Café:</label>
-                                <select name="cafe" class="form-select">
-                                    {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Cantidad (sacos):</label>
-                                <input type="number" name="cantidad" class="form-control" required min="1">
-                            </div>
-                            <button type="submit" class="btn btn-success w-100"><i class="bi bi-send-fill"></i> Realizar Movimiento</button>
-                        </form>
-                    </div>
-                </div>
-                
-                <div class="card shadow-sm mt-4">
-                    <div class="card-header d-flex align-items-center">
-                        <i class="bi bi-plus-circle-fill card-header-icon"></i>
-                        <strong>Agregar Sacos al Inventario</strong>
-                    </div>
-                    <div class="card-body">
-                         <form action="/agregar-inventario" method="post">
-                            <div class="mb-3">
-                                <label class="form-label">Bodega:</label>
-                                <select name="bodega" class="form-select">
-                                    {% for i in range(bodegas|length) %}<option value="{{ i }}">{{ bodegas[i] }}</option>{% endfor %}
-                                </select>
-                            </div>
-                             <div class="mb-3">
-                                <label class="form-label">Tipo de Café:</label>
-                                <select name="cafe" class="form-select">
-                                    {% for i in range(cafes|length) %}<option value="{{ i }}">{{ cafes[i] }}</option>{% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Cantidad a Agregar:</label>
-                                <input type="number" name="cantidad" class="form-control" required min="1">
-                            </div>
-                            <button type="submit" class="btn btn-info w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
-                        </form>
+                    <div class="col-md-8">
+                        <div class="card card-custom p-4">
+                            <canvas id="chartProyeccion"></canvas>
+                        </div>
+                        <div class="alert alert-info mt-3 small p-2">
+                            <i class="bi bi-info-circle"></i> <strong>Fundamento Matemático:</strong> Se resuelve la Ecuación Normal <code>(X^T * X)^-1 * X^T * y</code> para encontrar la proyección ortogonal del vector de datos sobre el espacio columna.
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 4. CONFIGURACIÓN (BOLSA) -->
+            <div id="config" class="tab-content d-none">
+                <h2 class="mb-4">Sincronización Bursátil</h2>
+                <div class="card card-custom p-5 text-center">
+                    <i class="bi bi-graph-up-arrow display-1 text-success mb-3"></i>
+                    <h3>Bolsa de Valores de Nueva York (NYBOT)</h3>
+                    <p class="lead">Actualice sus precios locales basándose en el contrato "C" internacional.</p>
+                    
+                    <button id="btnSync" onclick="sincronizarBolsa()" class="btn btn-lg btn-success w-50 mx-auto">
+                        <i class="bi bi-arrow-repeat"></i> Sincronizar Ahora
+                    </button>
+                    
+                    <div id="syncResult" class="mt-4 d-none">
+                        <div class="math-box text-start mx-auto w-75">
+                            <h6><i class="bi bi-cpu"></i> Transformación Lineal Ejecutada:</h6>
+                            <p>Precio NY (USD/lb): <span id="pNY"></span></p>
+                            <p>TRM (COP/USD): <span id="pTRM"></span></p>
+                            <p>Escalar Compuesto (λ): <span id="pEscalar"></span></p>
+                            <hr style="border-color: var(--matrix-color)">
+                            <p>T(v) = λ · v_calidad</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Navegación entre pestañas
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('d-none'));
+        document.getElementById(tabId).classList.remove('d-none');
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        // Buscar el link que disparó el evento para activarlo (si existe)
+        if(event && event.target) {
+             // Si el click fue en el icono, buscar el padre
+             const target = event.target.classList.contains('nav-link') ? event.target : event.target.closest('.nav-link');
+             if(target) target.classList.add('active');
+        }
+    }
+
+    // Instancia Global del Gráfico
+    let myChart = null;
+
+    // Sincronizar Bolsa
+    async function sincronizarBolsa() {
+        const btn = document.getElementById('btnSync');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Conectando API...';
+        
+        try {
+            const res = await fetch('/api/sincronizar-bolsa', {method: 'POST'});
+            const data = await res.json();
+            
+            if(data.status === 'success') {
+                document.getElementById('syncResult').classList.remove('d-none');
+                document.getElementById('pNY').innerText = data.datos_math.precio_bolsa;
+                document.getElementById('pTRM').innerText = data.datos_math.trm;
+                document.getElementById('pEscalar').innerText = data.datos_math.escalar_total;
+                alert('¡Precios actualizados con éxito!');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (e) {
+            alert('Error de conexión con el servidor.');
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sincronizar Ahora';
+    }
+
+    // Calcular Proyección (CORREGIDO)
+    async function calcularProyeccion() {
+        const cafeIdx = document.getElementById('selectProyeccion').value;
+        const res = await fetch(`/api/proyeccion/${cafeIdx}`);
+        const data = await res.json();
+
+        if(data.error) {
+            alert(data.error);
+            return;
+        }
+
+        // Mostrar Resultados Numéricos
+        document.getElementById('resultadoProyeccion').classList.remove('d-none');
+        document.getElementById('diasRestantes').innerText = data.dias_agotamiento + " días";
+        document.getElementById('valM').innerText = data.pendiente;
+        document.getElementById('valB').innerText = data.intercepto;
+
+        // Graficar
+        const ctx = document.getElementById('chartProyeccion').getContext('2d');
+        if(myChart) myChart.destroy();
+
+        // Crear array para la línea de tendencia: y = mx + b
+        const rectaY = data.datos_x.map(x => (data.pendiente * x) + data.intercepto);
+        // Etiquetas para el eje X (Día 0, Día 1...)
+        const labelsX = data.datos_x.map(x => "Día " + x);
+
+        myChart = new Chart(ctx, {
+            type: 'line', // Usamos 'line' para ambos datasets para compartir Eje X
+            data: {
+                labels: labelsX,
+                datasets: [
+                    {
+                        label: 'Histórico (Simulado)',
+                        data: data.datos_y,
+                        borderColor: '#4B3621',
+                        backgroundColor: '#4B3621',
+                        // TRUCO: Ocultar línea para que parezcan puntos dispersos
+                        showLine: false, 
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    },
+                    {
+                        label: 'Proyección (Mínimos Cuadrados)',
+                        data: rectaY,
+                        borderColor: '#CD853F',
+                        borderWidth: 2,
+                        borderDash: [5, 5], // Línea punteada
+                        fill: false,
+                        pointRadius: 0, // Sin puntos en la línea de tendencia
+                        tension: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'Regresión Lineal de Consumo' },
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        title: {display: true, text: 'Sacos en Inventario'} 
+                    }
+                }
+            }
+        });
+    }
+</script>
 </body>
 </html>
