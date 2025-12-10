@@ -7,16 +7,21 @@ import yfinance as yf
 
 app = Flask(__name__)
 
-# --- CONSTANTES ---
+# --- CONSTANTES Y CONFIGURACIÓN ---
 BODEGAS = ['Sevilla', 'Tuluá', 'Caicedonia']
 CAFES = ['Castillo', 'Caturra', 'Borbón']
+
+# Archivos de datos (Persistencia)
 FILE_INVENTARIO = 'inventario.json'
 FILE_PRECIOS = 'precios.json'
 FILE_MATRICES = 'matrices.json'
 FILE_HISTORIAL = 'historial.log'
+FILE_ESTADO_BOLSA = 'estado_bolsa.json' # Nuevo: Para persistir datos de mercado
 
 # --- GESTIÓN DE DATOS ---
+
 def cargar_json(filepath, default=None):
+    """Carga datos de un JSON de forma segura."""
     if not os.path.exists(filepath):
         return default if default is not None else []
     try:
@@ -26,14 +31,25 @@ def cargar_json(filepath, default=None):
         return default
 
 def guardar_json(filepath, data):
+    """Guarda datos en un JSON."""
     with open(filepath, 'w') as f:
         json.dump(data, f)
 
+def leer_historial_log():
+    """
+    Lee el archivo de log y devuelve una lista invertida (más reciente primero).
+    CORRECCIÓN: Se agrega errors='replace' para evitar fallos por tildes o caracteres especiales.
+    """
+    if not os.path.exists(FILE_HISTORIAL):
+        return []
+    
+    # 'errors="replace"' reemplaza caracteres corruptos con ? en lugar de bloquear la app
+    with open(FILE_HISTORIAL, 'r', encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+    return list(reversed(lines))
+
 def get_matrices():
-    """
-    Carga todas las matrices necesarias para las operaciones.
-    Si no existen, crea matrices de ceros por defecto.
-    """
+    """Carga todas las matrices necesarias como arrays de NumPy."""
     inv_data = cargar_json(FILE_INVENTARIO, [[0,0,0],[0,0,0],[0,0,0]])
     precios_data = cargar_json(FILE_PRECIOS, [0,0,0])
     matrices_data = cargar_json(FILE_MATRICES, {"costos_transporte": [[0,0,0],[0,0,0],[0,0,0]]})
@@ -46,43 +62,38 @@ def get_matrices():
     }
 
 def registrar_historial(mensaje):
+    """Escribe un evento en el log con fecha y hora."""
+    # Usamos utf-8 para asegurar compatibilidad
     with open(FILE_HISTORIAL, 'a', encoding='utf-8') as f:
         f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {mensaje}\n")
 
-# --- LÓGICA DE NEGOCIO Y ÁLGEBRA LINEAL ---
+# --- LÓGICA MATEMÁTICA (NIVEL 5) ---
 
 def proyeccion_minimos_cuadrados(cafe_idx):
     """
-    NIVEL 5: Aplica Mínimos Cuadrados (Regresión Lineal).
-    Matemática: Beta = (X.T * X)^-1 * X.T * Y
+    Aplica Regresión Lineal (Mínimos Cuadrados) para proyectar agotamiento.
+    Resuelve: Beta = (X^T * X)^-1 * X^T * Y
     """
     mats = get_matrices()
-    # Sumar stock total de ese tipo de café en todas las bodegas
     total_actual = np.sum(mats["inventario"][:, cafe_idx])
     
-    # --- SIMULACIÓN DE DATOS HISTÓRICOS ---
-    # Para efectos del proyecto final, simulamos una tendencia de consumo
-    # basada en el inventario actual para que la gráfica siempre tenga sentido.
+    # Simulación de datos históricos para demostración académica
+    dias = np.array(range(10)) # Eje X
+    consumo_promedio_diario = 5 
     
-    dias = np.array(range(10)) # Eje X: 0 a 9
-    consumo_promedio_diario = 5 # Simulamos que gastan 5 sacos al día
-    
-    # Reconstruimos hacia atrás: 
-    # Si hoy (día 9) hay X, hace 9 días había X + (9*5)
     stock_historico = []
     for i in dias:
-        # Stock teórico + ruido aleatorio para que los puntos no sean perfectos
+        # Generar historia hacia atrás con algo de ruido aleatorio
         ruido = np.random.randint(-3, 4) 
         stock = total_actual + (consumo_promedio_diario * (9 - i)) + ruido
         stock_historico.append(max(0, stock))
         
     y = np.array(stock_historico) # Eje Y
     
-    # --- ÁLGEBRA LINEAL PURA ---
-    # 1. Matriz de Diseño X (columna de días y columna de 1s para el intercepto)
+    # 1. Matriz de Diseño X (Columna de días + Columna de 1s para intercepto)
     X = np.vstack([dias, np.ones(len(dias))]).T
     
-    # 2. Ecuación Normal: beta = (X^T * X)^-1 * X^T * y
+    # 2. Ecuación Normal
     XT_X = X.T @ X
     
     try:
@@ -95,12 +106,11 @@ def proyeccion_minimos_cuadrados(cafe_idx):
     
     m, b = beta # Pendiente (m), Intercepto (b)
     
-    # 3. Proyección: ¿Cuándo y será 0?  0 = mx + b  =>  x = -b / m
+    # 3. Cálculo del día cero (Agotamiento)
     if m >= 0:
-        dias_restantes = 999 # Si la pendiente es positiva, el stock sube (no se acaba)
+        dias_restantes = 999 
     else:
         dia_cero = -b / m
-        # Restamos los 9 días que ya pasaron en la simulación
         dias_restantes = max(0, dia_cero - 9) 
     
     return {
@@ -116,63 +126,81 @@ def proyeccion_minimos_cuadrados(cafe_idx):
 @app.route('/')
 def index():
     mats = get_matrices()
-    # Valoración = Inventario (3x3) . Precios (3x1)
-    # Resultado: Vector de 3 elementos (Valor total por bodega)
+    
+    # Operación Matricial Básica: Valoración Total
     valor_bodegas = np.dot(mats["inventario"], mats["precios"])
     valor_total = np.sum(valor_bodegas)
     
+    # Cargar datos adicionales para el Dashboard
+    historial = leer_historial_log()
+    estado_bolsa = cargar_json(FILE_ESTADO_BOLSA, {
+        "precio_bolsa": 0, 
+        "hora_bolsa": "No sincronizado", 
+        "trm": 0
+    })
+
     return render_template('index.html',
                            bodegas=BODEGAS,
                            cafes=CAFES,
                            inventario=mats["inventario"].tolist(),
                            precios=mats["precios"].tolist(),
                            valor_bodegas=valor_bodegas.tolist(),
-                           valor_total=valor_total)
+                           valor_total=valor_total,
+                           historial=historial,
+                           estado_bolsa=estado_bolsa)
 
 @app.route('/api/sincronizar-bolsa', methods=['POST'])
 def sincronizar_bolsa():
     """
-    NIVEL 4: Transformación Lineal de precios.
-    T(v) = k * v
+    Obtiene datos reales de Yahoo Finance y actualiza precios mediante Transformación Lineal.
+    Retorna JSON para actualización dinámica sin recarga.
     """
     try:
-        # 1. Obtener datos de Yahoo Finance
-        ticker_cafe = yf.Ticker("KC=F") # Futuros Café C
+        # 1. Obtener datos de API
+        ticker_cafe = yf.Ticker("KC=F")
         hist = ticker_cafe.history(period="1d")
         
         if hist.empty:
-             # Fallback si falla la API (valor promedio reciente)
-             precio_bolsa_usd_lb = 2.45 
+             precio_bolsa_usd_lb = 2.45
+             hora_mercado = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
              precio_bolsa_usd_lb = hist['Close'].iloc[-1]
+             # Obtener hora del índice del DataFrame
+             hora_mercado = hist.index[-1].strftime("%Y-%m-%d %H:%M:%S")
         
-        ticker_trm = yf.Ticker("COP=X") # Tasa de Cambio Peso Colombiano
+        ticker_trm = yf.Ticker("COP=X")
         hist_trm = ticker_trm.history(period="1d")
         trm = hist_trm['Close'].iloc[-1] if not hist_trm.empty else 4100
         
-        # 2. Transformación Lineal
-        lbs_por_saco = 154 # Aprox 70kg * 2.2
+        # 2. Transformación Lineal: T(v) = k * v
+        lbs_por_saco = 154 # Aprox 70kg
         mats = get_matrices()
         vector_calidad = mats["calidad"]
         
-        # Escalar Compuesto (Scalar Multiplication)
         escalar_conversion = precio_bolsa_usd_lb * trm * lbs_por_saco
-        
-        # Operación: Vector * Escalar
         nuevos_precios = vector_calidad * escalar_conversion
         nuevos_precios = np.round(nuevos_precios, 0).astype(int)
         
+        # 3. Guardar cambios
         guardar_json(FILE_PRECIOS, nuevos_precios.tolist())
-        registrar_historial(f"Bolsa Sincronizada: Café {round(precio_bolsa_usd_lb, 2)} USD/lb @ TRM {round(trm, 0)}")
+        
+        datos_bolsa = {
+            "precio_bolsa": round(precio_bolsa_usd_lb, 2),
+            "hora_bolsa": hora_mercado,
+            "trm": round(trm, 2)
+        }
+        guardar_json(FILE_ESTADO_BOLSA, datos_bolsa)
+        
+        registrar_historial(f"Sincronización Bolsa: {hora_mercado} - ${round(precio_bolsa_usd_lb, 2)}")
         
         return jsonify({
             "status": "success", 
             "nuevos_precios": nuevos_precios.tolist(),
             "datos_math": {
-                "precio_bolsa": round(precio_bolsa_usd_lb, 2),
-                "trm": round(trm, 2),
-                "escalar_total": round(escalar_conversion, 2),
-                "vector_base": vector_calidad.tolist()
+                "precio_bolsa": datos_bolsa["precio_bolsa"],
+                "hora_bolsa": datos_bolsa["hora_bolsa"],
+                "trm": datos_bolsa["trm"],
+                "escalar_total": round(escalar_conversion, 2)
             }
         })
     except Exception as e:
@@ -189,20 +217,22 @@ def mover_inventario():
     inv = mats["inventario"]
     
     if inv[origen, cafe] >= cantidad:
-        # Actualizar cantidad (Resta/Suma elemental)
+        # Actualizar Inventario
         inv[origen, cafe] -= cantidad
         inv[destino, cafe] += cantidad
         guardar_json(FILE_INVENTARIO, inv.tolist())
         
-        # Calcular costo logístico (Uso de Matriz de Adyacencia/Costos)
-        # Costo = Cantidad * Costo_Unitario[origen][destino]
+        # Calcular Costo con Matriz de Adyacencia
         costo_unitario = mats["costos_transporte"][origen, destino]
         costo_total = cantidad * costo_unitario
         
-        registrar_historial(f"Movimiento {cantidad} {CAFES[cafe]} {BODEGAS[origen]}->{BODEGAS[destino]}. Costo: {costo_total}")
+        # Log formateado para la tabla del frontend
+        msg = f"Logística: Mover {cantidad} {CAFES[cafe]} ({BODEGAS[origen]}->{BODEGAS[destino]}) | Costo: ${costo_total:,}"
+        registrar_historial(msg)
+        
         return redirect(url_for('index', mensaje_alerta=f"Movimiento exitoso. Costo Logístico: ${costo_total:,}"))
     
-    return redirect(url_for('index', mensaje_error="Inventario insuficiente en origen"))
+    return redirect(url_for('index', mensaje_error="Inventario insuficiente"))
 
 @app.route('/agregar-inventario', methods=['POST'])
 def agregar_inventario():
@@ -216,7 +246,7 @@ def agregar_inventario():
     if cantidad > 0:
         inv[bodega, cafe] += cantidad
         guardar_json(FILE_INVENTARIO, inv.tolist())
-        registrar_historial(f"Ingreso {cantidad} {CAFES[cafe]} a {BODEGAS[bodega]}")
+        registrar_historial(f"Ingreso: {cantidad} {CAFES[cafe]} a {BODEGAS[bodega]}")
         
     return redirect(url_for('index'))
 
